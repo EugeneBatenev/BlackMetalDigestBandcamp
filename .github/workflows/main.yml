@@ -31,7 +31,7 @@ jobs:
       # (requests для HTTP, beautifulsoup4 для парсинга HTML, openai для доступа к GPT)
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 openai
+          pip install requests feedparser openai
 
       # Запускаем скрипт, который собирает релизы и вызывает GPT-4o
       - name: Run Bandcamp digest generator
