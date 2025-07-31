@@ -1,1 +1,49 @@
+name: Bandcamp Digest Generator
 
+on:
+  # Запускается автоматически каждую среду в 17:00 UTC (19:00 по Сербии)
+  schedule:
+    - cron: '0 17 * * 3'
+
+  # Также можно запускать вручную из интерфейса GitHub
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # Передаём OpenAI токен из GitHub Secrets в переменную окружения
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+    steps:
+      # Клонируем репозиторий
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Устанавливаем нужную версию Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Устанавливаем все необходимые библиотеки
+      # (requests для HTTP, beautifulsoup4 для парсинга HTML, openai для доступа к GPT)
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 openai
+
+      # Запускаем скрипт, который собирает релизы и вызывает GPT-4o
+      - name: Run Bandcamp digest generator
+        run: |
+          python bandcamp_digest.py
+
+      # Сохраняем результат как артефакт — файл digest.md
+      # Артефакт можно скачать в интерфейсе GitHub → Actions
+      - name: Upload digest as artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandcamp-digest-${{ github.run_id }}
+          path: output/digest.md
+          retention-days: 7
