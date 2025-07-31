@@ -19,7 +19,7 @@ OUTPUT_JSON = "output/playwright_releases.json"
 OUTPUT_MD = "output/digest.md"
 MAX_RELEASES = 20
 
-openai.api_key = os.environ.get("OPENAI_API_KEY", "sk-xxx")
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 
 # ===== СБОР РЕЛИЗОВ ЧЕРЕЗ PLAYWRIGHT =====
