@@ -1,7 +1,7 @@
 import os
 import json
 import openai
-import feedparser
+import requests
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -21,43 +21,60 @@ OUTPUT_FILE = "output/digest.md"
 
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
+# ===== ЗАПРОС В DISCOVER API =====
 
-# ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
-
-def fetch_releases_from_rss(tag: str) -> list:
+def fetch_bandcamp_releases(tag: str, page: int = 1) -> list:
     """
-    Получает список релизов по RSS для заданного тега
+    Запрашивает релизы с Bandcamp Discover API по тегу и возвращает список
     """
-    url = f"https://bandcamp.com/tag/{tag}?sort_field=date&format=rss"
-    print(f"[INFO] Fetching RSS: {url}")
-    feed = feedparser.parse(url)
+    url = "https://bandcamp.com/api/discover/1/discover_web"
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0"
+    }
+    payload = {
+        "filters": {
+            "tag": tag
+        },
+        "sort": "date",
+        "page": page
+    }
 
+    print(f"[INFO] Fetching tag '{tag}' page {page}...")
+    resp = requests.post(url, headers=headers, json=payload)
+    resp.raise_for_status()
+
+    data = resp.json()
+    items = data.get("items", [])
     releases = []
-    for entry in feed.entries:
-        # Преобразуем дату публикации
+
+    for item in items:
+        if "tralbum_title" not in item or not item.get("tralbum_url"):
+            continue
+
+        # Пример даты: "2024-11-18T00:00:00Z"
+        pubdate = item.get("publish_date", "")
         try:
-            published = datetime(*entry.published_parsed[:6])
+            dt = datetime.strptime(pubdate[:10], "%Y-%m-%d")
+            if datetime.utcnow() - dt > timedelta(days=DAYS_LIMIT):
+                continue
         except Exception:
             continue
 
-        if datetime.utcnow() - published > timedelta(days=DAYS_LIMIT):
-            continue
-
         releases.append({
-            "title": entry.title,
-            "artist": entry.author if "author" in entry else "Unknown Artist",
-            "url": entry.link,
-            "release_date": published.strftime("%Y-%m-%d"),
-            "description": entry.summary if "summary" in entry else ""
+            "title": item.get("tralbum_title"),
+            "artist": item.get("artist"),
+            "url": item.get("tralbum_url"),
+            "release_date": dt.strftime("%Y-%m-%d"),
+            "description": item.get("genre") or ""  # можно будет потом дополнить
         })
 
     return releases
 
 
+# ===== GPT-4o: СОЗДАНИЕ ДАЙДЖЕСТА =====
+
 def ask_gpt_digest(releases: list) -> str:
-    """
-    Отдаём релизы в GPT и получаем готовый markdown
-    """
     system_prompt = {
         "role": "system",
         "content": (
@@ -65,8 +82,6 @@ def ask_gpt_digest(releases: list) -> str:
             "Тебе нужно выбрать 5 лучших релизов из списка, который тебе пришлют. "
             "Ты не просто описываешь — ты передаёшь атмосферу. "
             "Можно материться, если это помогает выразить эмоцию. "
-            "Не пиши слишком много, но и не скупись на детали. "
-            "Старайся находить малоизвестные группы, но если релиз известный, упоминай это. "
             "Сравнивай релизы с другими известными группами (если есть сходство), "
             "упоминай настроение, качество звучания, тематику, вокал. "
             "Пиши коротко, сочно, и как будто ты говоришь с человеком, который шарит. "
@@ -95,9 +110,6 @@ def ask_gpt_digest(releases: list) -> str:
 
 
 def save_markdown(text: str, path: str):
-    """
-    Сохраняем результат в markdown-файл
-    """
     Path(os.path.dirname(path)).mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
@@ -109,23 +121,21 @@ def main():
     all_releases = {}
 
     for tag in TAGS:
-        releases = fetch_releases_from_rss(tag)
+        releases = fetch_bandcamp_releases(tag)
         for r in releases:
-            all_releases[r["url"]] = r  # защита от дубликатов
+            all_releases[r["url"]] = r  # убираем дубликаты
 
-    # Сортируем по дате и берём первые MAX_RELEASES
-    unique_releases = sorted(
-        all_releases.values(),
-        key=lambda r: r["release_date"],
-        reverse=True
-    )[:MAX_RELEASES]
+        if len(all_releases) >= MAX_RELEASES:
+            break
 
-    if not unique_releases:
-        save_markdown("# Дайджест\n\nК сожалению, новых релизов не найдено.", OUTPUT_FILE)
-        print("[INFO] Нет подходящих релизов.")
+    releases = list(all_releases.values())[:MAX_RELEASES]
+    print(f"[INFO] Найдено релизов: {len(releases)}")
+
+    if not releases:
+        save_markdown("# Дайджест\n\nНичего не найдено за последние дни.", OUTPUT_FILE)
         return
 
-    digest = ask_gpt_digest(unique_releases)
+    digest = ask_gpt_digest(releases)
     save_markdown(digest, OUTPUT_FILE)
     print(f"[DONE] Дайджест сохранён в {OUTPUT_FILE}")
 

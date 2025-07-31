@@ -1,48 +1,35 @@
 name: Bandcamp Digest Generator
 
 on:
-  # Запускается автоматически каждую среду в 17:00 UTC (19:00 по Сербии)
   schedule:
-    - cron: '0 17 * * 3'
-
-  # Также можно запускать вручную из интерфейса GitHub
+    # Запускаем каждый четверг в 19:00 по Белграду (17:00 UTC)
+    - cron: '0 17 * * 4'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Передаём OpenAI токен из GitHub Secrets в переменную окружения
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-
     steps:
-      # Клонируем репозиторий
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository  # Клонируем репозиторий
+      uses: actions/checkout@v4
 
-      # Устанавливаем нужную версию Python
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+    - name: Set up Python         # Устанавливаем Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-      # Устанавливаем все необходимые библиотеки
-      - name: Install dependencies
-        run: |
-          pip install requests feedparser openai
+    - name: Install dependencies  # Устанавливаем зависимости (только requests и openai)
+      run: pip install requests openai
 
-      # Запускаем скрипт, который собирает релизы и вызывает GPT-4o
-      - name: Run Bandcamp digest generator
-        run: |
-          python bandcamp_digest.py
+    - name: Run Bandcamp digest generator  # Запускаем наш питоновский скрипт
+      run: python bandcamp_digest.py
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      # Сохраняем результат как артефакт — файл digest.md
-      # Артефакт можно скачать в интерфейсе GitHub → Actions
-      - name: Upload digest as artifact
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: bandcamp-digest-${{ github.run_id }}
-          path: output/digest.md
-          retention-days: 7
+    - name: Upload digest as artifact       # Сохраняем результат как артефакт GitHub Actions
+      uses: actions/upload-artifact@v4
+      with:
+        name: bandcamp-digest
+        path: output/digest.md
+        retention-days: 3
