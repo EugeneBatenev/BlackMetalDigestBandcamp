@@ -1,9 +1,8 @@
-name: Bandcamp Digest Generator
+name: Generate Bandcamp Digest
 
 on:
   schedule:
-    # Запускаем каждый четверг в 19:00 по Белграду (17:00 UTC)
-    - cron: '0 17 * * 4'
+    - cron: '0 17 * * 3'  # Каждую среду в 19:00 (GMT+2)
   workflow_dispatch:
 
 jobs:
@@ -11,25 +10,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository  # Клонируем репозиторий
-      uses: actions/checkout@v4
+      # Шаг 1: Клонируем репозиторий
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python         # Устанавливаем Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      # Шаг 2: Устанавливаем зависимости
+      - name: Install Python dependencies
+        run: |
+          pip install playwright openai
+          playwright install chromium
 
-    - name: Install dependencies  # Устанавливаем зависимости (только requests и openai)
-      run: pip install requests openai
+      # Шаг 3: Запускаем скрипт генерации дайджеста
+      - name: Run bandcamp_digest.py
+        run: python bandcamp_digest.py
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-    - name: Run Bandcamp digest generator  # Запускаем наш питоновский скрипт
-      run: python bandcamp_digest.py
-      env:
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-
-    - name: Upload digest as artifact       # Сохраняем результат как артефакт GitHub Actions
-      uses: actions/upload-artifact@v4
-      with:
-        name: bandcamp-digest
-        path: output/digest.md
-        retention-days: 3
+      # Шаг 4: Сохраняем markdown и JSON как артефакт
+      - name: Upload generated digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandcamp-digest-${{ github.run_id }}
+          path: |
+            output/digest.md
+            output/playwright_releases.json
+          retention-days: 3
