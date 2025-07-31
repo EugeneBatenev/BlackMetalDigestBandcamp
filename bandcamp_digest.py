@@ -19,7 +19,7 @@ OUTPUT_JSON = "output/playwright_releases.json"
 OUTPUT_MD = "output/digest.md"
 MAX_RELEASES = 20
 
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+openai.api_key = os.environ.get("OPENAI_API_KEY", "sk-xxx")
 
 
 # ===== СБОР РЕЛИЗОВ ЧЕРЕЗ PLAYWRIGHT =====
@@ -38,11 +38,18 @@ def get_discover_releases(tag: str) -> list:
         print(f"[INFO] Fetching: {page_url}")
         page.goto(page_url, timeout=60000)
 
+        # Принятие cookies, если всплывает окно
+        try:
+            if page.is_visible("text=Accept all"):
+                page.click("text=Accept all")
+                print(f"[INFO] Accepted cookies banner for tag '{tag}'")
+        except Exception as e:
+            print(f"[WARN] Cookie banner check failed: {e}")
+
         try:
             page.wait_for_selector(".discover-result", timeout=60000)
         except Exception as e:
             print(f"[WARN] Timeout while waiting for .discover-result on tag '{tag}': {e}")
-            Path("output").mkdir(parents=True, exist_ok=True)
             page.screenshot(path=f"output/screenshot_{tag}.png")
             return []
 
