@@ -28,7 +28,6 @@ jobs:
           python-version: '3.11'
 
       # Устанавливаем все необходимые библиотеки
-      # (requests для HTTP, beautifulsoup4 для парсинга HTML, openai для доступа к GPT)
       - name: Install dependencies
         run: |
           pip install requests feedparser openai
