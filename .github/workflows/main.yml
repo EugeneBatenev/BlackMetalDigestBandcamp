@@ -6,32 +6,41 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  generate_digest:
     runs-on: ubuntu-latest
 
     steps:
-      # Шаг 1: Клонируем репозиторий
+      # Проверка кода
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Шаг 2: Устанавливаем зависимости
+      # Установка Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Установка зависимостей
       - name: Install Python dependencies
         run: |
+          pip install --upgrade pip
           pip install playwright openai
-          playwright install chromium
+          playwright install --with-deps
 
-      # Шаг 3: Запускаем скрипт генерации дайджеста
-      - name: Run bandcamp_digest.py
+      # Запуск скрипта
+      - name: Run digest script
         run: python bandcamp_digest.py
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        continue-on-error: false
 
-      # Шаг 4: Сохраняем markdown и JSON как артефакт
-      - name: Upload generated digest
+      # Сохранение результатов
+      - name: Save digest & screenshots as artifact
         uses: actions/upload-artifact@v4
         with:
           name: bandcamp-digest-${{ github.run_id }}
           path: |
             output/digest.md
             output/playwright_releases.json
-          retention-days: 3
+            output/screenshot_*.png
+          retention-days: 7

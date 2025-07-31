@@ -27,13 +27,24 @@ openai.api_key = os.environ.get("OPENAI_API_KEY", "sk-xxx")
 def get_discover_releases(tag: str) -> list:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
+        context = browser.new_context(user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/115.0.0.0 Safari/537.36"
+        ))
         page = context.new_page()
 
         page_url = f"https://bandcamp.com/discover/{tag}"
         print(f"[INFO] Fetching: {page_url}")
         page.goto(page_url, timeout=60000)
-        page.wait_for_selector(".discover-result")
+
+        try:
+            page.wait_for_selector(".discover-result", timeout=60000)
+        except Exception as e:
+            print(f"[WARN] Timeout while waiting for .discover-result on tag '{tag}': {e}")
+            Path("output").mkdir(parents=True, exist_ok=True)
+            page.screenshot(path=f"output/screenshot_{tag}.png")
+            return []
 
         items = page.query_selector_all(".discover-result")
         results = []
